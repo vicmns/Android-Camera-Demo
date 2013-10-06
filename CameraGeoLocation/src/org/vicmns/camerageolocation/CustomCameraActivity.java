@@ -7,21 +7,31 @@ import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 
 import android.animation.ObjectAnimator;
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.Resources;
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.Rect;
 import android.hardware.Camera;
 import android.hardware.Camera.AutoFocusCallback;
+import android.hardware.Camera.AutoFocusMoveCallback;
 import android.hardware.Camera.ShutterCallback;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.hardware.Camera.Parameters;
 import android.hardware.Camera.Size;
@@ -44,6 +54,7 @@ import android.provider.MediaStore;
 import android.provider.MediaStore.Audio.Media;
 import android.provider.MediaStore.Video.Thumbnails;
 import android.util.Log;
+import android.util.TypedValue;
 import android.view.Display;
 import android.view.OrientationEventListener;
 import android.view.SurfaceHolder;
@@ -72,7 +83,7 @@ import android.widget.Toast;
 import android.widget.ToggleButton;
 
 public class CustomCameraActivity extends Activity implements Camera.ShutterCallback, Camera.PictureCallback, OnCheckedChangeListener ,
-			OnClickListener, OnInfoListener {
+			OnClickListener, OnInfoListener, SensorEventListener  {
 	
 	private static final String TAG = "CustomCameraActivity";
 	
@@ -92,7 +103,6 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 	
 	private Context context;
 	private OrientationEventListener myOrientationEventListener;
-	private boolean takePicture = false;
 	
 	private static boolean stopAnimation = false;
 	private boolean isRecording = false;
@@ -120,6 +130,17 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 	
 	private String videoFilePath;
 	
+	private DrawingView drawingView;
+
+	private SensorManager sensorManager;
+	
+	private float mLastX;
+	private float mLastY;
+	private float mLastZ;
+	private boolean mInitialized = false;
+	private boolean mAutoFocus = true;
+	private boolean isFocused = false;
+	
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
@@ -145,9 +166,18 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 		shutterButton.setOnClickListener(this);
 		albumPreview.setOnClickListener(this);
 		
+
+        drawingView = new DrawingView(this);
+        LayoutParams layoutParamsDrawing 
+        	= new LayoutParams(LayoutParams.FILL_PARENT, 
+        			LayoutParams.FILL_PARENT);
+        this.addContentView(drawingView, layoutParamsDrawing);
+		
 		setRotationListener();
 		isPictureSelected = true;
 		getLocation();
+		
+		sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
 	}
 	
 	@Override
@@ -166,6 +196,20 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 		super.onStart();
 	}
 	
+	@Override
+	protected void onResume() {
+		sensorManager.registerListener(this,
+		        sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER),
+		        SensorManager.SENSOR_DELAY_NORMAL);
+		super.onResume();
+	}
+
+	@Override
+	protected void onPause() {
+		sensorManager.unregisterListener(this);
+		super.onPause();
+	}
+
 	@Override
 	protected void onStop() {
 		super.onStop();
@@ -196,6 +240,8 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 			cameraPreview = new CameraPreview(this, mCamera,
 					((WindowManager)getSystemService(Context.WINDOW_SERVICE)).getDefaultDisplay());
 			previewCamera.addView(cameraPreview);
+			
+			//mCamera.setAutoFocusMoveCallback(moveFocus);
 		}
 	}
 	
@@ -575,8 +621,6 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 	      
 	      setImageExifData(pictureFile.toString());
 	      
-//	      Toast.makeText(context, "New Image saved:" + photoFile,
-//	          Toast.LENGTH_LONG).show();
 	    } catch (Exception error) {
 	      Log.d(TAG, "File" + filename + "not saved: "
 	          + error.getMessage());
@@ -592,16 +636,36 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 	public void onShutter() {
 		highlightScreen();
 	}
-	
-	AutoFocusCallback myAutoFocusCallback = new AutoFocusCallback(){
+		
+	AutoFocusCallback touchAutofocus = new AutoFocusCallback() {
 		
 		@Override
 		public void onAutoFocus(boolean arg0, Camera arg1) {
+			mAutoFocus = true;
+			isFocused = true;
+			drawingView.setVisibility(View.INVISIBLE);
+		}
+	};
+	
+	AutoFocusCallback moveAutofocus = new AutoFocusCallback() {
+		
+		@Override
+		public void onAutoFocus(boolean arg0, Camera arg1) {
+			mAutoFocus = true;
+			isFocused = true;
+		}
+	};
+		
+	//Compatible only for 4.1 devices
+	@SuppressLint("NewApi")
+	AutoFocusMoveCallback moveFocus = new AutoFocusMoveCallback() {
+		
+		@Override
+		public void onAutoFocusMoving(boolean start, Camera camera) {
 			// TODO Auto-generated method stub
-			if(takePicture) {
-				takePicture();
-			}
-		}};
+			
+		}
+	};
 	
 	private void takePicture() {
 		mCamera.takePicture(this, null, this);
@@ -687,8 +751,9 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 	public void onClick(View v) {
 		switch(v.getId()) {
 			case R.id.shutter_button:
-				takePicture = true;
-				mCamera.autoFocus(myAutoFocusCallback);
+				if(isFocused) {
+					takePicture();
+				}
 				break;
 			case R.id.album_preview_iv:
 				if(lastMediaUri != null) {
@@ -944,5 +1009,142 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 				e.printStackTrace();
 			}
 		}
+	}
+	
+	public void touchFocus(final Rect tfocusRect) {		
+		final List<Camera.Area> focusList = new ArrayList<Camera.Area>();
+		Camera.Area focusArea = new Camera.Area(tfocusRect, 1);
+		focusList.add(focusArea);
+		
+		mAutoFocus = false;
+		isFocused = false;
+		
+		Parameters para = mCamera.getParameters();
+		para.setFocusAreas(focusList);
+		para.setMeteringAreas(focusList);
+		mCamera.setParameters(para);
+		
+		mCamera.autoFocus(touchAutofocus);
+		
+		drawingView.setVisibility(View.VISIBLE);
+		drawingView.setHaveTouch(true, tfocusRect);
+  		drawingView.invalidate();
+    }
+	
+private class DrawingView extends View{
+		
+		boolean haveFace;
+		Paint drawingPaint;
+		
+		boolean haveTouch;
+		Rect touchArea;
+		
+		private int left, right, top, bottom;
+
+		public DrawingView(Context context) {
+			super(context);
+			haveFace = false;
+			drawingPaint = new Paint();
+			drawingPaint.setColor(Color.GREEN);
+			drawingPaint.setStyle(Paint.Style.STROKE); 
+			drawingPaint.setStrokeWidth(2);
+			
+			haveTouch = false;
+		}
+		
+		public void setHaveFace(boolean h){
+			haveFace = h;
+		}
+		
+		public void setHaveTouch(boolean t, Rect tArea){
+			haveTouch = t;
+			touchArea = tArea;
+		}
+
+		@Override
+		protected void onDraw(Canvas canvas) {
+			
+//			if(haveFace) {
+//
+//				// Camera driver coordinates range from (-1000, -1000) to (1000, 1000).
+//				 // UI coordinates range from (0, 0) to (width, height).
+//				 
+//				 int vWidth = getWidth();
+//				 int vHeight = getHeight();
+//				
+//				for(int i=0; i<detectedFaces.length; i++){
+//					
+//					if(i == 0){
+//						drawingPaint.setColor(Color.GREEN);
+//					}else{
+//						drawingPaint.setColor(Color.RED);
+//					}
+//					
+//					int l = detectedFaces[i].rect.left;
+//					int t = detectedFaces[i].rect.top;
+//					int r = detectedFaces[i].rect.right;
+//					int b = detectedFaces[i].rect.bottom;
+//					int left	= (l+1000) * vWidth/2000;
+//					int top		= (t+1000) * vHeight/2000;
+//					int right	= (r+1000) * vWidth/2000;
+//					int bottom	= (b+1000) * vHeight/2000;
+//					canvas.drawRect(
+//							left, top, right, bottom,  
+//							drawingPaint);
+//				}
+//			}else {
+//				canvas.drawColor(Color.TRANSPARENT);
+//			}
+			if(haveTouch) {
+				drawingPaint.setColor(Color.BLUE);
+				canvas.drawRect(
+						touchArea.left, touchArea.top, touchArea.right, touchArea.bottom,  
+						drawingPaint);
+			}
+		}
+		
+	}
+
+	@Override
+	public void onAccuracyChanged(Sensor sensor, int accuracy) {
+		// TODO Auto-generated method stub
+		
+	}
+	
+	@Override
+	public void onSensorChanged(SensorEvent event) {
+		float x = event.values[0];
+		float y = event.values[1];
+		float z = event.values[2];
+		if (!mInitialized){
+		    mLastX = x;
+		    mLastY = y;
+		    mLastZ = z;
+		    mInitialized = true;
+		}
+		float deltaX  = Math.abs(mLastX - x);
+		float deltaY = Math.abs(mLastY - y);
+		float deltaZ = Math.abs(mLastZ - z);
+
+		if (deltaX > .5 && mAutoFocus){ //AUTOFOCUS (while it is not autofocusing)
+		    mAutoFocus = false;
+		    isFocused = false;
+		    mCamera.autoFocus(moveAutofocus);
+		}
+		if (deltaY > .5 && mAutoFocus){ //AUTOFOCUS (while it is not autofocusing)
+		    mAutoFocus = false;
+		    isFocused = false;
+		    mCamera.autoFocus(moveAutofocus);
+		}
+		if (deltaZ > .5 && mAutoFocus){ //AUTOFOCUS (while it is not autofocusing)
+		    mAutoFocus = false;
+		    isFocused = false;
+		    mCamera.autoFocus(moveAutofocus);
+		}
+
+		mLastX = x;
+		mLastY = y;
+		mLastZ = z;
+		
 	}
 }

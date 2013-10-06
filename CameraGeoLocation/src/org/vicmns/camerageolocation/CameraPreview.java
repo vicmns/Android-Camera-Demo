@@ -5,11 +5,15 @@ import java.util.List;
 
 
 import android.content.Context;
+import android.content.res.Resources;
+import android.graphics.Rect;
 import android.hardware.Camera;
 import android.hardware.Camera.Parameters;
 import android.hardware.Camera.Size;
 import android.util.Log;
+import android.util.TypedValue;
 import android.view.Display;
+import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
@@ -188,4 +192,29 @@ public class CameraPreview extends SurfaceView implements SurfaceHolder.Callback
         super.onMeasure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.AT_MOST), 
         		MeasureSpec.makeMeasureSpec(height, MeasureSpec.AT_MOST));
     }
+	
+	@Override
+	public boolean onTouchEvent(MotionEvent event) {
+		
+		if(event.getAction() == MotionEvent.ACTION_DOWN){
+			float x = event.getX();
+		    float y = event.getY();
+		    float touchMajor = event.getTouchMajor();
+		    float touchMinor = event.getTouchMinor();
+		    
+		    Resources r = getResources();
+			float px = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 70, r.getDisplayMetrics());
+		    
+		    Rect touchRect = new Rect(
+		    		(int)(x - px/2), 
+		    		(int)(y - px/2), 
+		    		(int)(x + px/2), 
+		    		(int)(y + px/2));
+		    
+		    ((CustomCameraActivity)getContext()).touchFocus(touchRect);
+		}
+		
+		
+		return true;
+	}
 }
