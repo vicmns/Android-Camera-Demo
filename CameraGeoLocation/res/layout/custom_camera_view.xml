@@ -4,7 +4,7 @@
     android:id="@+id/mainCameraLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#ffffff"
+    android:background="#000000"
     tools:context=".CustomCameraActivity" >
 	
     <FrameLayout
@@ -108,13 +108,29 @@
             android:src="@drawable/gps_indicator" />
     </FrameLayout>
 
-    <org.vicmns.customviews.VerticalSeekBar
-        android:id="@+id/zoom_bar_landscape"
+    <FrameLayout
+        android:id="@+id/zoom_bar_layout"
         android:layout_width="wrap_content"
-        android:layout_height="170dp"
+        android:layout_height="wrap_content"
+        android:layout_above="@id/album_preview_layout"
         android:layout_alignParentLeft="true"
         android:layout_centerVertical="true"
-        android:layout_marginLeft="30dp"
-        android:progress="0" />
+        android:layout_below="@id/change_media_toggle"
+        android:layout_marginLeft="10dp"
+        android:clickable="true" >
+        
+	    <org.vicmns.customviews.VerticalSeekBar
+	        android:id="@+id/zoom_bar"
+	        android:layout_width="wrap_content"
+	        android:layout_height="match_parent"
+	        android:paddingBottom="20dp"
+	       android:paddingLeft="16dp"
+	        android:paddingRight="16dp"
+	        android:paddingTop="20dp"
+	        android:progress="0"
+	        android:progressDrawable="@drawable/zoom_bar_progress"
+	        android:thumb="@drawable/zoom_bar_thumb" />
+	    
+    </FrameLayout>
 
 </RelativeLayout>

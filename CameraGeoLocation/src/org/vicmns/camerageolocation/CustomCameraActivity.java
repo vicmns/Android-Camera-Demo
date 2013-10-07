@@ -108,9 +108,11 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 	private FrameLayout previewCamera;
 	private FrameLayout albumPreviewLayout;
 	private FrameLayout gpsIndicatorLayout;
+	private FrameLayout zoomBarLayout;
 	private VerticalSeekBar zoomBar;
 	
-	RelativeLayout.LayoutParams initialZoomViewParams;
+	FrameLayout.LayoutParams initialZoomViewParams;
+	RelativeLayout.LayoutParams initialZoomLayoutViewParams;
 	
 	private Camera mCamera;
 	private CameraPreview cameraPreview;
@@ -169,6 +171,7 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 		previewCamera = (FrameLayout) findViewById(R.id.cameraPreview);
 		albumPreviewLayout = (FrameLayout) findViewById(R.id.album_preview_layout);
 		gpsIndicatorLayout = (FrameLayout) findViewById(R.id.gps_indicator_layout);
+		zoomBarLayout = (FrameLayout) findViewById(R.id.zoom_bar_layout);
 		startStopRecording = (ToggleButton) findViewById(R.id.record_toggle);
 		photoVideo = (ToggleButton) findViewById(R.id.change_media_toggle);
 		shutterButton = (Button) findViewById(R.id.shutter_button);
@@ -177,11 +180,13 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 		takePictureBkg = (ImageView) findViewById(R.id.take_picture_bkg_iv);
 		gpsIndicator = (ImageView) findViewById(R.id.gps_indicator_iv);
 		
-		zoomBar = (VerticalSeekBar) findViewById(R.id.zoom_bar_landscape);
+		zoomBar = (VerticalSeekBar) findViewById(R.id.zoom_bar);
 		
 		
-		initialZoomViewParams = (RelativeLayout.LayoutParams)
+		initialZoomViewParams = (FrameLayout.LayoutParams)
 				zoomBar.getLayoutParams();
+		initialZoomLayoutViewParams = (RelativeLayout.LayoutParams) 
+				zoomBarLayout.getLayoutParams();
 		
 		startStopRecording.setOnCheckedChangeListener(this);
 		photoVideo.setOnCheckedChangeListener(this);
@@ -532,6 +537,7 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 				zoomBar.setViewAngle(-90);
 				zoomBar.setLayoutParams(initialZoomViewParams);
 				zoomBar.invalidate();
+				zoomBarLayout.setLayoutParams(initialZoomLayoutViewParams);
 			}
 		});
 		fadeAndMove.play(fadeAnim).before(fadeOutAnim);
@@ -559,8 +565,9 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 		fadeAnim.addListener(new AnimatorListenerAdapter() {
 			public void onAnimationEnd(Animator animation) {
 				zoomBar.setViewAngle(90);
-				zoomBar.setLayoutParams(zoomViewParams);
+				zoomBar.setLayoutParams(initialZoomViewParams);
 				zoomBar.invalidate();
+				zoomBarLayout.setLayoutParams(initialZoomLayoutViewParams);
 			}
 		});
 		fadeAndMove.play(fadeAnim).before(fadeOutAnim);
@@ -569,21 +576,25 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 	
 	private void moveZoomBarPortrait() {
 		Resources r = getResources();
-		int w = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 170, r.getDisplayMetrics());
-		final RelativeLayout.LayoutParams zoomViewParams = new RelativeLayout.LayoutParams(
+		int w = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 200, r.getDisplayMetrics());
+		final RelativeLayout.LayoutParams zoomViewLayoutParams = new RelativeLayout.LayoutParams(
 				w, RelativeLayout.LayoutParams.WRAP_CONTENT);
 		
-		zoomViewParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
-		zoomViewParams.addRule(RelativeLayout.CENTER_HORIZONTAL);
+		final FrameLayout.LayoutParams zoomViewParams = new FrameLayout.LayoutParams(
+				RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.WRAP_CONTENT);
+		
+		zoomViewLayoutParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+		zoomViewLayoutParams.addRule(RelativeLayout.CENTER_HORIZONTAL);
 		
 		AnimatorSet fadeAndMove = new AnimatorSet();
-		ValueAnimator fadeAnim = ObjectAnimator.ofFloat(zoomBar, "alpha", 1f, 0f);
-		ValueAnimator fadeOutAnim = ObjectAnimator.ofFloat(zoomBar, "alpha", 0f, 1f);
+		ValueAnimator fadeAnim = ObjectAnimator.ofFloat(zoomBarLayout, "alpha", 1f, 0f);
+		ValueAnimator fadeOutAnim = ObjectAnimator.ofFloat(zoomBarLayout, "alpha", 0f, 1f);
 		fadeAnim.setDuration(500);
 		fadeOutAnim.setDuration(0);
 		
 		fadeAnim.addListener(new AnimatorListenerAdapter() {
 			public void onAnimationEnd(Animator animation) {
+				zoomBarLayout.setLayoutParams(zoomViewLayoutParams);
 				zoomBar.setViewAngle(180);
 				zoomBar.setLayoutParams(zoomViewParams);
 				zoomBar.invalidate();
@@ -810,6 +821,7 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 			mAutoFocus = true;
 			isFocused = true;
 			drawingView.setVisibility(View.INVISIBLE);
+			zoomBar.setEnabled(true);
 		}
 	};
 	
@@ -819,6 +831,7 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 		public void onAutoFocus(boolean arg0, Camera arg1) {
 			mAutoFocus = true;
 			isFocused = true;
+			zoomBar.setEnabled(true);
 		}
 	};
 		
@@ -1192,6 +1205,7 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 			
 			mAutoFocus = false;
 			isFocused = false;
+			zoomBar.setEnabled(false);
 			
 			para.setFocusAreas(focusList);
 			para.setMeteringAreas(focusList);
@@ -1314,21 +1328,25 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 		float deltaX  = Math.abs(mLastX - x);
 		float deltaY = Math.abs(mLastY - y);
 		float deltaZ = Math.abs(mLastZ - z);
-
-		if (deltaX > .5 && mAutoFocus){ //AUTOFOCUS (while it is not autofocusing)
-		    mAutoFocus = false;
-		    isFocused = false;
-		    mCamera.autoFocus(moveAutofocus);
-		}
-		if (deltaY > .5 && mAutoFocus){ //AUTOFOCUS (while it is not autofocusing)
-		    mAutoFocus = false;
-		    isFocused = false;
-		    mCamera.autoFocus(moveAutofocus);
-		}
-		if (deltaZ > .5 && mAutoFocus){ //AUTOFOCUS (while it is not autofocusing)
-		    mAutoFocus = false;
-		    isFocused = false;
-		    mCamera.autoFocus(moveAutofocus);
+		if(!isZooming) {
+			if (deltaX > 1 && mAutoFocus){ //AUTOFOCUS (while it is not autofocusing)
+				mAutoFocus = false;
+				isFocused = false;
+				zoomBar.setEnabled(false);
+				mCamera.autoFocus(moveAutofocus);
+			}
+			if (deltaY > 1 && mAutoFocus){ //AUTOFOCUS (while it is not autofocusing)
+				mAutoFocus = false;
+				isFocused = false;
+				zoomBar.setEnabled(false);
+				mCamera.autoFocus(moveAutofocus);
+			}
+			if (deltaZ > 1 && mAutoFocus){ //AUTOFOCUS (while it is not autofocusing)
+				mAutoFocus = false;
+				isFocused = false;
+				zoomBar.setEnabled(false);
+				mCamera.autoFocus(moveAutofocus);
+			}			
 		}
 
 		mLastX = x;
