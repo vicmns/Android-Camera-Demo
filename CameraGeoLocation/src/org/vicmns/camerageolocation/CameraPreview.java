@@ -202,14 +202,11 @@ public class CameraPreview extends SurfaceView implements SurfaceHolder.Callback
 		    float touchMajor = event.getTouchMajor();
 		    float touchMinor = event.getTouchMinor();
 		    
-		    Resources r = getResources();
-			float px = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 70, r.getDisplayMetrics());
-		    
 		    Rect touchRect = new Rect(
-		    		(int)(x - px/2), 
-		    		(int)(y - px/2), 
-		    		(int)(x + px/2), 
-		    		(int)(y + px/2));
+		            (int)(x - touchMajor/2), 
+		            (int)(y - touchMinor/2), 
+		            (int)(x + touchMajor/2), 
+		            (int)(y + touchMinor/2));
 		    
 		    ((CustomCameraActivity)getContext()).touchFocus(touchRect);
 		}

@@ -153,7 +153,10 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 	private boolean mAutoFocus = true;
 	private boolean isFocused = false;
 	
-	int currentZoomLevel = 0, maxZoomLevel = 0;
+	private int currentZoomLevel = 0, maxZoomLevel = 0;
+	private boolean isZooming = false;
+	
+	private Thread zoomThread;
 	
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -259,7 +262,6 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 			cameraPreview = new CameraPreview(this, mCamera,
 					((WindowManager)getSystemService(Context.WINDOW_SERVICE)).getDefaultDisplay());
 			previewCamera.addView(cameraPreview);
-			maxZoomLevel = mCamera.getParameters().getMaxZoom();
 			setZoomView();
 			resetZoomView();
 			//mCamera.setAutoFocusMoveCallback(moveFocus);
@@ -327,6 +329,9 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 	}
 	
 	private void setZoomView() {
+		final Parameters params = mCamera.getParameters(); 
+		maxZoomLevel = params.getMaxZoom();
+		
 		zoomBar.setMax(maxZoomLevel);
 		zoomBar.setOnSeekBarChangeListener(new OnSeekBarChangeListener() {
 			
@@ -348,7 +353,7 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 				if(fromUser) {
 				}
 				currentZoomLevel = progress;
-				zoomCamera();					
+				zoomCamera(params);					
 			}
 		});
 	}
@@ -358,8 +363,35 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 		zoomBar.setProgress(0);
 	}
 	
-	private void zoomCamera() {
-		mCamera.startSmoothZoom(currentZoomLevel);
+	private void zoomCamera(Parameters params) {
+		if (params.isZoomSupported() && params.isSmoothZoomSupported()) {
+			mCamera.startSmoothZoom(currentZoomLevel); 
+		 } else if(params.isZoomSupported() && !params.isSmoothZoomSupported()) {
+			 doZoom(params);
+		 }
+	}
+	
+	private void doZoom(final Parameters params) {
+		Runnable runnable = new Runnable() {
+			
+			@Override
+			public void run() {
+				isZooming = true;
+				mCamera.stopPreview();
+				while(isZooming) {
+					params.setZoom(currentZoomLevel);
+					isZooming = false;
+				}
+				mCamera.setParameters(params);
+				mCamera.startPreview();
+			}
+		};
+		if(!isZooming) {
+			zoomThread = new Thread(runnable);
+			zoomThread.start();
+		} else {
+			isZooming = true;
+		}
 	}
 	
 	//Create a instance of Camera
@@ -1146,26 +1178,49 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 	}
 	
 	public void touchFocus(final Rect tfocusRect) {		
-		final List<Camera.Area> focusList = new ArrayList<Camera.Area>();
-		Camera.Area focusArea = new Camera.Area(tfocusRect, 1);
-		focusList.add(focusArea);
-		
-		mAutoFocus = false;
-		isFocused = false;
-		
 		Parameters para = mCamera.getParameters();
-		para.setFocusAreas(focusList);
-		para.setMeteringAreas(focusList);
-		mCamera.setParameters(para);
-		
-		mCamera.autoFocus(touchAutofocus);
-		
-		drawingView.setVisibility(View.VISIBLE);
-		drawingView.setHaveTouch(true, tfocusRect);
-  		drawingView.invalidate();
+		if(para.getMaxNumFocusAreas() > 0) {
+			//Convert from View's width and height to +/- 1000
+			final Rect targetFocusRect = new Rect(
+					tfocusRect.left * 2000/drawingView.getWidth() - 1000,
+					tfocusRect.top * 2000/drawingView.getHeight() - 1000,
+					tfocusRect.right * 2000/drawingView.getWidth() - 1000,
+					tfocusRect.bottom * 2000/drawingView.getHeight() - 1000);
+			final List<Camera.Area> focusList = new ArrayList<Camera.Area>();
+			Camera.Area focusArea = new Camera.Area(targetFocusRect , 1000);
+			focusList.add(focusArea);
+			
+			mAutoFocus = false;
+			isFocused = false;
+			
+			para.setFocusAreas(focusList);
+			para.setMeteringAreas(focusList);
+			mCamera.setParameters(para);
+			
+			mCamera.autoFocus(touchAutofocus);
+			
+			drawingView.setVisibility(View.VISIBLE);
+			int centerX = (( Math.abs(tfocusRect.right) -  Math.abs(tfocusRect.left)) / 2) 
+					+ Math.abs(tfocusRect.left);
+			int centerY = ((  Math.abs(tfocusRect.bottom ) -  Math.abs(tfocusRect.top)) / 2) 
+					+ Math.abs(tfocusRect.top);
+			
+			Resources r = getResources();
+			float px = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 70, r.getDisplayMetrics());
+			
+			Rect touchRect = new Rect(
+    		(int)(centerX - px/2), 
+    		(int)(centerY - px/2), 
+    		(int)(centerX + px/2), 
+    		(int)(centerY + px/2));
+			
+			drawingView.setHaveTouch(true, touchRect);
+			
+			drawingView.invalidate();			
+		}
     }
 	
-private class DrawingView extends View{
+	private class DrawingView extends View{
 		
 		boolean haveFace;
 		Paint drawingPaint;

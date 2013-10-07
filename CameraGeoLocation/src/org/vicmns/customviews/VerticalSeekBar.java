@@ -80,13 +80,20 @@ public class VerticalSeekBar extends SeekBar {
             case MotionEvent.ACTION_MOVE:
             case MotionEvent.ACTION_UP:
             	if(rotationAngle == -90) {
-            		setProgress(getMax() - (int) (getMax() * event.getY() / getHeight()));
+            		int progress = getMax() - (int) (getMax() * event.getY() / getHeight());
+            		progress = (progress < 0) ? 0 : progress; 
+            		setProgress((progress < getMax()) ? progress : getMax());
             	}
             	else if(rotationAngle == 90) {
-            		setProgress( (int) (getMax() * event.getY() / getHeight()));
+            		int progress = (int) (getMax() * event.getY() / getHeight());
+            		progress = (progress < 0) ? 0 : progress; 
+            		setProgress( (progress < getMax()) ? progress : getMax());
             	}
-            	else if(rotationAngle == 0  || Math.abs(rotationAngle) == 180)
-            		setProgress(getMax() - (int) (getMax() * event.getX() / getWidth()));
+            	else if(rotationAngle == 0  || Math.abs(rotationAngle) == 180) {
+            		int progress = getMax() - (int) (getMax() * event.getX() / getWidth());
+            		progress = (progress < 0) ? 0 : progress;
+            		setProgress((progress < getMax()) ? progress : getMax());            		
+            	}
                 onSizeChanged(getWidth(), getHeight(), 0, 0);
                 break;
 

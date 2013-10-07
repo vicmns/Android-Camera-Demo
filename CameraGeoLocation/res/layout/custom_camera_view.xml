@@ -108,13 +108,13 @@
             android:src="@drawable/gps_indicator" />
     </FrameLayout>
 
-    
     <org.vicmns.customviews.VerticalSeekBar
         android:id="@+id/zoom_bar_landscape"
         android:layout_width="wrap_content"
         android:layout_height="170dp"
         android:layout_alignParentLeft="true"
         android:layout_centerVertical="true"
-        android:layout_marginLeft="30dp" />
+        android:layout_marginLeft="30dp"
+        android:progress="0" />
 
 </RelativeLayout>
