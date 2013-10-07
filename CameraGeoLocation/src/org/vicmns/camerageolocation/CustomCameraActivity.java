@@ -13,7 +13,14 @@ import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 
+import org.vicmns.customviews.VerticalSeekBar;
+
+import android.animation.Animator;
+import android.animation.Animator.AnimatorListener;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
+import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.ContentValues;
@@ -56,6 +63,7 @@ import android.provider.MediaStore.Video.Thumbnails;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.Display;
+import android.view.Gravity;
 import android.view.OrientationEventListener;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
@@ -79,6 +87,8 @@ import android.widget.ImageView.ScaleType;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.RelativeLayout;
+import android.widget.SeekBar;
+import android.widget.SeekBar.OnSeekBarChangeListener;
 import android.widget.Toast;
 import android.widget.ToggleButton;
 
@@ -98,6 +108,10 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 	private FrameLayout previewCamera;
 	private FrameLayout albumPreviewLayout;
 	private FrameLayout gpsIndicatorLayout;
+	private VerticalSeekBar zoomBar;
+	
+	RelativeLayout.LayoutParams initialZoomViewParams;
+	
 	private Camera mCamera;
 	private CameraPreview cameraPreview;
 	
@@ -134,12 +148,12 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 
 	private SensorManager sensorManager;
 	
-	private float mLastX;
-	private float mLastY;
-	private float mLastZ;
+	private float mLastX, mLastY, mLastZ;
 	private boolean mInitialized = false;
 	private boolean mAutoFocus = true;
 	private boolean isFocused = false;
+	
+	int currentZoomLevel = 0, maxZoomLevel = 0;
 	
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -152,7 +166,6 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 		previewCamera = (FrameLayout) findViewById(R.id.cameraPreview);
 		albumPreviewLayout = (FrameLayout) findViewById(R.id.album_preview_layout);
 		gpsIndicatorLayout = (FrameLayout) findViewById(R.id.gps_indicator_layout);
-		
 		startStopRecording = (ToggleButton) findViewById(R.id.record_toggle);
 		photoVideo = (ToggleButton) findViewById(R.id.change_media_toggle);
 		shutterButton = (Button) findViewById(R.id.shutter_button);
@@ -160,6 +173,12 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 		albumPreview = (ImageView) findViewById(R.id.album_preview_iv);
 		takePictureBkg = (ImageView) findViewById(R.id.take_picture_bkg_iv);
 		gpsIndicator = (ImageView) findViewById(R.id.gps_indicator_iv);
+		
+		zoomBar = (VerticalSeekBar) findViewById(R.id.zoom_bar_landscape);
+		
+		
+		initialZoomViewParams = (RelativeLayout.LayoutParams)
+				zoomBar.getLayoutParams();
 		
 		startStopRecording.setOnCheckedChangeListener(this);
 		photoVideo.setOnCheckedChangeListener(this);
@@ -240,12 +259,15 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 			cameraPreview = new CameraPreview(this, mCamera,
 					((WindowManager)getSystemService(Context.WINDOW_SERVICE)).getDefaultDisplay());
 			previewCamera.addView(cameraPreview);
-			
+			maxZoomLevel = mCamera.getParameters().getMaxZoom();
+			setZoomView();
+			resetZoomView();
 			//mCamera.setAutoFocusMoveCallback(moveFocus);
 		}
 	}
 	
 	private void setVideoView() {
+		resetZoomView();
 		previewCamera.removeAllViews();
 		mCamera = getCameraInstance();
 		if(mCamera != null) {
@@ -304,6 +326,42 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 		return new File(mediaStorageDir.getPath() + File. separator +timeStamp + ".mp4" ).toString();
 	}
 	
+	private void setZoomView() {
+		zoomBar.setMax(maxZoomLevel);
+		zoomBar.setOnSeekBarChangeListener(new OnSeekBarChangeListener() {
+			
+			@Override
+			public void onStopTrackingTouch(SeekBar seekBar) {
+				// TODO Auto-generated method stub
+				
+			}
+			
+			@Override
+			public void onStartTrackingTouch(SeekBar seekBar) {
+				// TODO Auto-generated method stub
+				
+			}
+			
+			@Override
+			public void onProgressChanged(SeekBar seekBar, int progress,
+					boolean fromUser) {
+				if(fromUser) {
+				}
+				currentZoomLevel = progress;
+				zoomCamera();					
+			}
+		});
+	}
+	
+	private void resetZoomView() {
+		currentZoomLevel = 0;
+		zoomBar.setProgress(0);
+	}
+	
+	private void zoomCamera() {
+		mCamera.startSmoothZoom(currentZoomLevel);
+	}
+	
 	//Create a instance of Camera
 	public static Camera getCameraInstance() {
 		Camera c = null;
@@ -323,9 +381,10 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 					if(grades < 280 && grades > 210) {
 						//This is rotation 0
 						if(!isLandscape) {
-							Log.i(TAG, "Landscape 1");
+							Log.i(TAG, "Landscape Normal");
 							rotate0Deg();
 							lastRotation = 0;
+							moveZoomBarLandscape();
 						}
 						isLandscape = true;
 						isLandscapeInverted = false;
@@ -333,9 +392,10 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 					} else if(grades > 70 && grades < 130) {
 						//this is rotation 180
 						if(!isLandscapeInverted) {
-							Log.i(TAG, "Landscape 2");
+							Log.i(TAG, "Landscape Inverted");
 							rotateM180Deg();
 							lastRotation = 180;
+							moveZoomBarLandscapeInverted();
 						}
 						isLandscapeInverted = true;
 						isLandscape = false;
@@ -346,6 +406,7 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 							Log.i(TAG, "Portrait");
 							rotateM90Deg();
 							lastRotation = 90;
+							moveZoomBarPortrait();
 						}
 						isPortrait = true;
 						isLandscape = false;
@@ -425,6 +486,79 @@ public class CustomCameraActivity extends Activity implements Camera.ShutterCall
 		photoVideoAnimation.start();
 		shutterButtonAnimation.start();
 		albumPreviewAnimation.start();
+	}
+	
+	private void moveZoomBarLandscape() {
+		AnimatorSet fadeAndMove = new AnimatorSet();
+		ValueAnimator fadeAnim = ObjectAnimator.ofFloat(zoomBar, "alpha", 1f, 0f);
+		ValueAnimator fadeOutAnim = ObjectAnimator.ofFloat(zoomBar, "alpha", 0f, 1f);
+		fadeAnim.setDuration(500);
+		fadeOutAnim.setDuration(0);
+		
+		fadeAnim.addListener(new AnimatorListenerAdapter() {
+			public void onAnimationEnd(Animator animation) {
+				zoomBar.setViewAngle(-90);
+				zoomBar.setLayoutParams(initialZoomViewParams);
+				zoomBar.invalidate();
+			}
+		});
+		fadeAndMove.play(fadeAnim).before(fadeOutAnim);
+		fadeAndMove.start();
+	}
+	
+	private void moveZoomBarLandscapeInverted() {
+		Resources r = getResources();
+		int h = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 170, r.getDisplayMetrics());
+		int marginLeft = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 30, r.getDisplayMetrics());
+		
+		final RelativeLayout.LayoutParams zoomViewParams = new RelativeLayout.LayoutParams(
+				RelativeLayout.LayoutParams.WRAP_CONTENT, h);
+		
+		zoomViewParams.addRule(RelativeLayout.ALIGN_PARENT_LEFT);
+		zoomViewParams.addRule(RelativeLayout.CENTER_VERTICAL);
+		zoomViewParams.setMargins(marginLeft, 0, 0, 0);
+		
+		AnimatorSet fadeAndMove = new AnimatorSet();
+		ValueAnimator fadeAnim = ObjectAnimator.ofFloat(zoomBar, "alpha", 1f, 0f);
+		ValueAnimator fadeOutAnim = ObjectAnimator.ofFloat(zoomBar, "alpha", 0f, 1f);
+		fadeAnim.setDuration(500);
+		fadeOutAnim.setDuration(0);
+		
+		fadeAnim.addListener(new AnimatorListenerAdapter() {
+			public void onAnimationEnd(Animator animation) {
+				zoomBar.setViewAngle(90);
+				zoomBar.setLayoutParams(zoomViewParams);
+				zoomBar.invalidate();
+			}
+		});
+		fadeAndMove.play(fadeAnim).before(fadeOutAnim);
+		fadeAndMove.start();
+	}
+	
+	private void moveZoomBarPortrait() {
+		Resources r = getResources();
+		int w = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 170, r.getDisplayMetrics());
+		final RelativeLayout.LayoutParams zoomViewParams = new RelativeLayout.LayoutParams(
+				w, RelativeLayout.LayoutParams.WRAP_CONTENT);
+		
+		zoomViewParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+		zoomViewParams.addRule(RelativeLayout.CENTER_HORIZONTAL);
+		
+		AnimatorSet fadeAndMove = new AnimatorSet();
+		ValueAnimator fadeAnim = ObjectAnimator.ofFloat(zoomBar, "alpha", 1f, 0f);
+		ValueAnimator fadeOutAnim = ObjectAnimator.ofFloat(zoomBar, "alpha", 0f, 1f);
+		fadeAnim.setDuration(500);
+		fadeOutAnim.setDuration(0);
+		
+		fadeAnim.addListener(new AnimatorListenerAdapter() {
+			public void onAnimationEnd(Animator animation) {
+				zoomBar.setViewAngle(180);
+				zoomBar.setLayoutParams(zoomViewParams);
+				zoomBar.invalidate();
+			}
+		});
+		fadeAndMove.play(fadeAnim).before(fadeOutAnim);
+		fadeAndMove.start();
 	}
 	
 	private void startRecordAnimation() {
